@@ -2,133 +2,174 @@ import { useEffect, useState } from "react";
 import { Thermometer, Droplet, Sun, Activity } from "lucide-react";
 import Loading from "./Loading";
 import Node3Control from "./Node3Control";
+import NPKDashboard from "./NPKDashboard";
 
 type ThingSpeakFeed = {
-  field1: string | null;
-  field2: string | null;
-  field3: string | null;
-  field4: string | null;
+  field1: string | null; // Node 1
+  field2: string | null; // Node 2
   created_at: string;
 };
 
+const POLLING_INTERVAL = 15000;
+
 const Dashboard = () => {
-  const [node1, setNode1] = useState<ThingSpeakFeed | null>(null);
-  const [node2, setNode2] = useState<ThingSpeakFeed | null>(null);
+  const [node1, setNode1] = useState<number[]>([]);
+  const [node2, setNode2] = useState<number[]>([]);
   const [lastUpdated, setLastUpdated] = useState("");
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000);
+    const interval = setInterval(fetchData, POLLING_INTERVAL);
     return () => clearInterval(interval);
   }, []);
 
+  const parseValues = (value?: string | null) => {
+    if (!value) return [];
+    return value.split(",").map((v) => parseFloat(v.trim()));
+  };
+
+  const formatTime = (utcString: string) => {
+    const date = new Date(utcString);
+    return date.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
+    });
+  };
+
   const fetchData = async () => {
     try {
-      if (!node1 && !node2) {
-        setLoading(true);
-      } else {
-        setUpdating(true);
-      }
-
-      /* ================= NODE 1 ================= */
-      const res1 = await fetch(
-        "https://api.thingspeak.com/channels/3232296/feeds.json?api_key=1DF7VGBJUG072J8I&results=1"
+      const res = await fetch(
+        "https://api.thingspeak.com/channels/3232296/feeds.json?results=1"
       );
-      const json1 = await res1.json();
 
-      if (json1.feeds && json1.feeds.length > 0) {
-        setNode1(json1.feeds[0]);
+      const json = await res.json();
+
+      if (json.feeds?.length > 0) {
+        const latest: ThingSpeakFeed = json.feeds[0];
+
+        setNode1(parseValues(latest.field1));
+        setNode2(parseValues(latest.field2));
+        setLastUpdated(formatTime(latest.created_at));
       }
-
-      /* ================= NODE 2 ================= */
-      const res2 = await fetch(
-        "https://api.thingspeak.com/channels/3233683/feeds.json?results=1"
-      );
-      const json2 = await res2.json();
-
-      if (json2.feeds && json2.feeds.length > 0) {
-        setNode2(json2.feeds[0]);
-        setLastUpdated(
-          new Date(json2.feeds[0].created_at).toLocaleTimeString()
-        );
-      }
-
     } catch (error) {
-      console.error("ThingSpeak Fetch Error:", error);
+      console.error("Fetch Error:", error);
     } finally {
       setLoading(false);
-      setUpdating(false);
     }
   };
 
-  if (loading && !node1 && !node2) return <Loading />;
+  if (loading) return <Loading />;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center p-6">
-      <div className="w-full max-w-2xl">
+    <div className="min-h-screen bg-gray-100">
 
-        <h1 className="text-2xl font-bold mb-6 text-center">
-          🌱 Farm Monitoring Dashboard
-        </h1>
+      {/* ================= HERO SECTION ================= */}
+      <div className="relative h-[300px] md:h-[400px] overflow-hidden rounded-b-3xl">
+        <img
+          src="https://images.unsplash.com/photo-1492496913980-501348b61469"
+          alt="Farm Background"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-black/60"></div>
 
-        {updating && (
-          <p className="text-center text-xs text-green-600 animate-pulse mb-4">
-            🔄 Updating live data...
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center px-4">
+          <h1 className="text-3xl md:text-5xl font-bold">
+            🌱 Smart Farm Monitoring
+          </h1>
+          <p className="mt-3 text-sm md:text-lg opacity-90">
+            Live Sensor Data & Motor Control System
           </p>
-        )}
+        </div>
+      </div>
 
-        {/* ================= NODE 1 & NODE 2 ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* ================= MAIN CONTENT ================= */}
+      <div className="max-w-7xl mx-auto px-6 -mt-16 pb-16 relative z-10">
 
-          {/* Node 1 */}
-          <div className="bg-white p-5 rounded-xl shadow-sm border">
-            <h2 className="text-lg font-semibold mb-4 text-green-600 text-center">
-              📡 Node 1
-            </h2>
-
-            <div className="space-y-4">
-              <SensorRow icon={<Thermometer className="text-red-500 w-5 h-5" />} label="Temperature" value={node1?.field1} unit="°C" />
-              <SensorRow icon={<Activity className="text-purple-500 w-5 h-5" />} label="pH Level" value={node1?.field2} />
-              <SensorRow icon={<Droplet className="text-blue-500 w-5 h-5" />} label="Water Level" value={node1?.field3} />
-              <SensorRow icon={<Sun className="text-yellow-500 w-5 h-5" />} label="LDR (Light)" value={node1?.field4} />
-            </div>
-          </div>
-
-          {/* Node 2 */}
-          <div className="bg-white p-5 rounded-xl shadow-sm border">
-            <h2 className="text-lg font-semibold mb-4 text-blue-600 text-center">
-              📡 Node 2
-            </h2>
-
-            <div className="space-y-4">
-              <SensorRow icon={<Thermometer className="text-red-500 w-5 h-5" />} label="Temperature" value={node2?.field1} unit="°C" />
-              <SensorRow icon={<Activity className="text-purple-500 w-5 h-5" />} label="pH Level" value={node2?.field2} />
-              <SensorRow icon={<Droplet className="text-blue-500 w-5 h-5" />} label="Water Level" value={node2?.field3} />
-              <SensorRow icon={<Sun className="text-yellow-500 w-5 h-5" />} label="LDR (Light)" value={node2?.field4} />
-            </div>
-          </div>
-
+        {/* NODE CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <SensorCard title="Node 1" values={node1} />
+          <SensorCard title="Node 2" values={node2} />
         </div>
 
-        {/* ================= NODE 3 CONTROL ================= */}
-        <div className="mt-8 max-w-md mx-auto">
+        {/* NODE 3 CONTROL PANEL */}
+        <div className="mt-12 bg-white rounded-3xl shadow-xl p-8">
+          <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
+            ⚙ Motor Control Panel 
+          </h2>
           <Node3Control />
         </div>
 
-        <p className="text-center text-xs text-gray-500 mt-6">
-          Last Updated: {lastUpdated || "Waiting for data..."}
-        </p>
+        {/* NPK DASHBOARD */}
+        <NPKDashboard />
+
+        {/* LAST UPDATED */}
+        <div className="mt-10 text-center">
+          <div className="inline-block bg-white shadow-md px-6 py-3 rounded-full text-sm text-gray-700">
+            🕒 Last Updated:{" "}
+            <span className="font-semibold text-emerald-600">
+              {lastUpdated || "Waiting for data..."}
+            </span>
+          </div>
+        </div>
 
       </div>
     </div>
   );
 };
 
-/* ================= Sensor Row ================= */
+/* ================= SENSOR CARD ================= */
 
-const SensorRow = ({
+const SensorCard = ({
+  title,
+  values,
+}: {
+  title: string;
+  values: number[];
+}) => (
+  <div className="bg-white rounded-3xl shadow-xl p-8 hover:shadow-2xl transition">
+    <h2 className="text-xl font-bold mb-6 text-gray-800 text-center">
+      📡 {title}
+    </h2>
+
+    <div className="grid grid-cols-2 gap-6">
+      <SensorItem
+        icon={<Thermometer className="text-red-500" />}
+        label="Temperature"
+        value={values[0]}
+        unit="°C"
+      />
+
+      <SensorItem
+        icon={<Activity className="text-purple-500" />}
+        label="pH Level"
+        value={values[1]}
+      />
+
+      <SensorItem
+        icon={<Droplet className="text-blue-500" />}
+        label="Water Level"
+        value={values[2]}
+      />
+
+      <SensorItem
+        icon={<Sun className="text-yellow-500" />}
+        label="LDR"
+        value={values[3]}
+      />
+    </div>
+  </div>
+);
+
+/* ================= SENSOR ITEM ================= */
+
+const SensorItem = ({
   icon,
   label,
   value,
@@ -136,15 +177,15 @@ const SensorRow = ({
 }: {
   icon: React.ReactNode;
   label: string;
-  value?: string | null;
+  value?: number;
   unit?: string;
 }) => (
-  <div className="flex items-center gap-4">
-    {icon}
+  <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl">
+    <div className="bg-white p-2 rounded-xl shadow">{icon}</div>
     <div>
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-2xl font-semibold">
-        {value ?? "--"} {unit}
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="text-xl font-bold text-gray-800">
+        {value !== undefined ? `${value} ${unit}` : "--"}
       </p>
     </div>
   </div>

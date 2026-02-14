@@ -1,311 +1,288 @@
-import { useState } from 'react';
-import { sensorData, SensorData } from '@/data/mockData';
+import { useEffect, useState } from "react";
 import {
-  Droplets,
-  Thermometer,
-  CloudRain,
-  Waves,
-  Cog,
-  FlaskConical,
-  RefreshCw,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Activity,
-  Leaf,
-  Zap,
-  Shield,
-  Droplet,
-} from 'lucide-react';
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Droplets,
-  Thermometer,
-  CloudRain,
-  Waves,
-  Cog,
-  FlaskConical,
-  Leaf,
-  Zap,
-  Shield,
-  Droplet,
+/* ================= CONFIG ================= */
+
+const CHANNEL_ID = "3232296";
+
+/* ================= TYPES ================= */
+
+type Feed = {
+  entry_id: number;
+  field1?: string; // Node1 CSV
+  field2?: string; // Node2 CSV
+  field3?: string; // NPK CSV
 };
 
-const SensorDetails = () => {
-  const [sensors, setSensors] = useState<SensorData[]>(sensorData);
-  const [selectedSensor, setSelectedSensor] = useState<SensorData>(sensors[0]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+/* ================= COMPONENT ================= */
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1000);
-  };
+export default function SensorDetails() {
+  const [feeds, setFeeds] = useState<Feed[]>([]);
+  const [selected, setSelected] = useState<string>("node1-ldr");
 
-  const Icon = iconMap[selectedSensor.icon] || Droplets;
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const getStatusBg = () => {
-    switch (selectedSensor.status) {
-      case 'good':
-        return 'bg-success/15';
-      case 'warning':
-        return 'bg-warning/15';
-      case 'critical':
-        return 'bg-danger/15';
-      default:
-        return 'bg-muted';
+  /* ================= FETCH ================= */
+
+  const fetchData = async () => {
+    try {
+      const res = await fetch(
+        `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?results=40`
+      );
+      const json = await res.json();
+      setFeeds(json.feeds || []);
+    } catch (err) {
+      console.error("Fetch error:", err);
     }
   };
 
-  const getStatusText = () => {
-    switch (selectedSensor.status) {
-      case 'good':
-        return 'text-success';
-      case 'warning':
-        return 'text-warning';
-      case 'critical':
-        return 'text-danger';
-      default:
-        return 'text-muted-foreground';
-    }
+  /* ================= PARSE ================= */
+
+  const parseNode = (value?: string) => {
+    if (!value) return [0, 0, 0, 0];
+    const parts = value.split(",").map((v) => Number(v.trim()));
+    return [
+      parts[0] || 0,
+      parts[1] || 0,
+      parts[2] || 0,
+      parts[3] || 0,
+    ];
   };
 
-  const getTrend = () => {
-    if (!selectedSensor.history || selectedSensor.history.length < 2) return 'stable';
-    const last = selectedSensor.history[selectedSensor.history.length - 1];
-    const prev = selectedSensor.history[selectedSensor.history.length - 2];
-    if (last > prev) return 'up';
-    if (last < prev) return 'down';
-    return 'stable';
+  const parseNPK = (value?: string) => {
+    if (!value) return [0, 0, 0];
+    const parts = value.split(",").map((v) => Number(v.trim()));
+    return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
   };
 
-  const getDisplayValue = () => {
-    if (selectedSensor.id === 'motor-status' || selectedSensor.id === 'motor-status-2') {
-      return selectedSensor.value === 1 ? 'ON' : 'OFF';
-    }
-    if (selectedSensor.id === 'valve-1' || selectedSensor.id === 'valve-2') {
-      return selectedSensor.value === 1 ? 'OPEN' : 'CLOSED';
-    }
-    if (selectedSensor.id === 'water-level') {
-      if (selectedSensor.value >= 70) return 'Full';
-      if (selectedSensor.value >= 40) return 'Medium';
-      return 'Low';
-    }
-    return `${selectedSensor.value}${selectedSensor.unit}`;
+  /* ================= FIELD MAP ================= */
+
+  const fieldMap: any = {
+    // NODE 1
+    "node1-temp": { label: "Temperature", index: 0, source: "field1", color: "#ef4444" },
+    "node1-ph": { label: "pH Level", index: 1, source: "field1", color: "#8b5cf6" },
+    "node1-water": { label: "Water Level", index: 2, source: "field1", color: "#3b82f6" },
+    "node1-ldr": { label: "LDR (Light)", index: 3, source: "field1", color: "#10b981" },
+    "node1-all": { label: "All Values", source: "field1" },
+
+    // NODE 2
+    "node2-temp": { label: "Temperature", index: 0, source: "field2", color: "#dc2626" },
+    "node2-ph": { label: "pH Level", index: 1, source: "field2", color: "#7c3aed" },
+    "node2-water": { label: "Water Level", index: 2, source: "field2", color: "#2563eb" },
+    "node2-ldr": { label: "LDR (Light)", index: 3, source: "field2", color: "#f59e0b" },
+    "node2-all": { label: "All Values", source: "field2" },
+
+    // NPK
+    "npk-n": { label: "Nitrogen", index: 0, source: "field3", color: "#16a34a" },
+    "npk-p": { label: "Phosphorus", index: 1, source: "field3", color: "#2563eb" },
+    "npk-k": { label: "Potassium", index: 2, source: "field3", color: "#f97316" },
+    "npk-all": { label: "All Values", source: "field3" },
   };
+
+  const current = fieldMap[selected];
+
+  /* ================= FORMAT GRAPH ================= */
+
+  let formattedData: any[] = [];
+
+  if (selected.includes("all")) {
+    formattedData = feeds.map((item) => {
+      const values =
+        current.source === "field3"
+          ? parseNPK(item.field3)
+          : parseNode(item[current.source]);
+
+      return {
+        entry_id: item.entry_id,
+        v1: values[0] || 0,
+        v2: values[1] || 0,
+        v3: values[2] || 0,
+        v4: values[3] || 0,
+      };
+    });
+  } else {
+    formattedData = feeds.map((item) => {
+      const values =
+        current.source === "field3"
+          ? parseNPK(item.field3)
+          : parseNode(item[current.source]);
+
+      return {
+        entry_id: item.entry_id,
+        value: values[current.index] || 0,
+      };
+    });
+  }
+
+  /* ================= DOWNLOAD ================= */
+
+  const downloadFile = (type: "json" | "csv" | "xml") => {
+    window.open(
+      `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.${type}?results=100`,
+      "_blank"
+    );
+  };
+
+  /* ================= UI ================= */
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="section-title flex items-center gap-3">
-            <Activity className="h-8 w-8 text-primary" />
-            Sensor Details
+    <div className="min-h-screen bg-gray-100">
+
+      {/* HERO SECTION */}
+      <div className="relative h-[320px] overflow-hidden">
+        <img
+          src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854"
+          className="w-full h-full object-cover"
+          alt="Farm"
+        />
+        <div className="absolute inset-0 bg-black/60"></div>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+          <h1 className="text-4xl md:text-5xl font-bold">
+            🌱 Sensor Analytics
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Detailed view of all agricultural parameters
-          </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="btn-primary self-start sm:self-auto"
-        >
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sensor Selection */}
-        <div className="lg:col-span-1">
-          <div className="bg-card rounded-xl border border-border p-4">
-            <h3 className="font-semibold text-foreground mb-4">Select Sensor</h3>
-            <div className="space-y-2">
-              {sensors.map((sensor) => {
-                const SensorIcon = iconMap[sensor.icon] || Droplets;
-                const isSelected = selectedSensor.id === sensor.id;
+      {/* MAIN CONTENT */}
+      <div className="max-w-6xl mx-auto px-6 -mt-20 pb-16 relative z-10">
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+          {/* SIDEBAR */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
+
+            <Sidebar title="🌡 Node 1">
+              {["temp","ph","water","ldr","all"].map((type) => {
+                const key = `node1-${type}`;
                 return (
-                  <button
-                    key={sensor.id}
-                    onClick={() => setSelectedSensor(sensor)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-                      isSelected
-                        ? 'bg-primary/10 border border-primary/30'
-                        : 'hover:bg-muted border border-transparent'
-                    }`}
-                  >
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                        isSelected ? 'bg-primary/20' : 'bg-muted'
-                      }`}
-                    >
-                      <SensorIcon
-                        className={`h-5 w-5 ${
-                          isSelected ? 'text-primary' : 'text-muted-foreground'
-                        }`}
-                      />
-                    </div>
-                    <div className="text-left">
-                      <p
-                        className={`font-medium ${
-                          isSelected ? 'text-primary' : 'text-foreground'
-                        }`}
-                      >
-                        {sensor.name}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {sensor.id === 'motor-status' || sensor.id === 'motor-status-2'
-                          ? sensor.value === 1
-                            ? 'ON'
-                            : 'OFF'
-                          : sensor.id === 'valve-1' || sensor.id === 'valve-2'
-                          ? sensor.value === 1
-                            ? 'OPEN'
-                            : 'CLOSED'
-                          : `${sensor.value}${sensor.unit}`}
-                      </p>
-                    </div>
-                    <div
-                      className={`ml-auto h-2.5 w-2.5 rounded-full ${
-                        sensor.status === 'good'
-                          ? 'bg-success'
-                          : sensor.status === 'warning'
-                          ? 'bg-warning'
-                          : 'bg-danger'
-                      }`}
-                    />
-                  </button>
+                  <SidebarItem
+                    key={key}
+                    label={fieldMap[key].label}
+                    active={selected === key}
+                    onClick={() => setSelected(key)}
+                  />
                 );
               })}
-            </div>
+            </Sidebar>
+
+            <Sidebar title="🛰 Node 2">
+              {["temp","ph","water","ldr","all"].map((type) => {
+                const key = `node2-${type}`;
+                return (
+                  <SidebarItem
+                    key={key}
+                    label={fieldMap[key].label}
+                    active={selected === key}
+                    onClick={() => setSelected(key)}
+                  />
+                );
+              })}
+            </Sidebar>
+
+            <Sidebar title="🌿 NPK">
+              {["n","p","k","all"].map((type) => {
+                const key = `npk-${type}`;
+                return (
+                  <SidebarItem
+                    key={key}
+                    label={fieldMap[key].label}
+                    active={selected === key}
+                    onClick={() => setSelected(key)}
+                  />
+                );
+              })}
+            </Sidebar>
+
           </div>
-        </div>
 
-        {/* Sensor Detail View */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Main Stats Card */}
-          <div className={`rounded-xl p-6 ${getStatusBg()} border border-border`}>
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div
-                  className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-card`}
-                >
-                  <Icon className={`h-8 w-8 ${getStatusText()}`} />
-                </div>
-                <div>
-                  <h2 className="font-display text-2xl font-bold text-foreground">
-                    {selectedSensor.name}
-                  </h2>
-                  <p className="text-muted-foreground">{selectedSensor.description}</p>
-                </div>
+          {/* GRAPH CARD */}
+          <div className="lg:col-span-3 bg-white rounded-2xl shadow-xl p-8">
+
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">
+                {current.label}
+              </h2>
+
+              <div className="flex gap-3">
+                <DownloadBtn label="JSON" onClick={() => downloadFile("json")} />
+                <DownloadBtn label="CSV" onClick={() => downloadFile("csv")} />
+                <DownloadBtn label="XML" onClick={() => downloadFile("xml")} />
               </div>
-              <span
-                className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize ${getStatusBg()} ${getStatusText()}`}
-              >
-                {selectedSensor.status}
-              </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="bg-card rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">Current Value</p>
-                <p className={`font-display text-3xl font-bold ${getStatusText()}`}>
-                  {getDisplayValue()}
-                </p>
-              </div>
-              <div className="bg-card rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">Trend</p>
-                <div className="flex items-center gap-2">
-                  {getTrend() === 'up' ? (
-                    <TrendingUp className="h-6 w-6 text-success" />
-                  ) : getTrend() === 'down' ? (
-                    <TrendingDown className="h-6 w-6 text-danger" />
+            <div className="w-full h-[400px] bg-gray-50 rounded-2xl p-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={formattedData}>
+                  <CartesianGrid strokeDasharray="4 4" />
+                  <XAxis dataKey="entry_id" />
+                  <YAxis />
+                  <Tooltip />
+
+                  {selected.includes("all") ? (
+                    <>
+                      <Line type="monotone" dataKey="v1" stroke="#ef4444" />
+                      <Line type="monotone" dataKey="v2" stroke="#8b5cf6" />
+                      <Line type="monotone" dataKey="v3" stroke="#3b82f6" />
+                      <Line type="monotone" dataKey="v4" stroke="#10b981" />
+                    </>
                   ) : (
-                    <Minus className="h-6 w-6 text-muted-foreground" />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke={current.color}
+                      strokeWidth={3}
+                    />
                   )}
-                  <span className="font-semibold capitalize">{getTrend()}</span>
-                </div>
-              </div>
-              {selectedSensor.max && (
-                <div className="bg-card rounded-lg p-4">
-                  <p className="text-sm text-muted-foreground mb-1">Range</p>
-                  <p className="font-semibold text-foreground">
-                    {selectedSensor.min} - {selectedSensor.max}
-                    {selectedSensor.unit}
-                  </p>
-                </div>
-              )}
+                </LineChart>
+              </ResponsiveContainer>
             </div>
+
           </div>
 
-          {/* Graph Placeholder */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold text-foreground mb-4">Historical Data</h3>
-            <div className="graph-placeholder h-64 flex items-center justify-center">
-              <div className="text-center">
-                <Activity className="h-12 w-12 text-primary/30 mx-auto mb-3" />
-                <p className="text-muted-foreground">Graph visualization placeholder</p>
-                <p className="text-sm text-muted-foreground/70">
-                  Connect to backend for real-time charts
-                </p>
-              </div>
-            </div>
-            {/* Mini bar chart representation */}
-            {selectedSensor.history && (
-              <div className="mt-6">
-                <p className="text-sm text-muted-foreground mb-3">Recent readings</p>
-                <div className="flex items-end gap-2 h-20">
-                  {selectedSensor.history.map((value, index) => {
-                    const maxVal = selectedSensor.max || Math.max(...selectedSensor.history!);
-                    const height = (value / maxVal) * 100;
-                    return (
-                      <div
-                        key={index}
-                        className={`flex-1 rounded-t-md transition-all ${getStatusBg()}`}
-                        style={{ height: `${height}%` }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Additional Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-card rounded-xl border border-border p-5">
-              <h4 className="font-semibold text-foreground mb-3">Thresholds</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Optimal Range</span>
-                  <span className="text-success font-medium">60% - 80%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Warning Level</span>
-                  <span className="text-warning font-medium">40% - 60%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Critical Level</span>
-                  <span className="text-danger font-medium">&lt; 40%</span>
-                </div>
-              </div>
-            </div>
-            <div className="bg-card rounded-xl border border-border p-5">
-              <h4 className="font-semibold text-foreground mb-3">Recommendations</h4>
-              <p className="text-sm text-muted-foreground">
-                {selectedSensor.status === 'good'
-                  ? 'All parameters are within optimal range. Continue current practices.'
-                  : selectedSensor.status === 'warning'
-                  ? 'Some parameters need attention. Consider adjusting irrigation schedule.'
-                  : 'Immediate action required. Check sensor and take corrective measures.'}
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
-};
+}
 
-export default SensorDetails;
+/* ================= SMALL COMPONENTS ================= */
+
+const Sidebar = ({ title, children }: any) => (
+  <div>
+    <h3 className="font-semibold text-gray-700 mb-3">{title}</h3>
+    <div className="space-y-2">{children}</div>
+  </div>
+);
+
+const SidebarItem = ({ label, active, onClick }: any) => (
+  <button
+    onClick={onClick}
+    className={`w-full px-4 py-2 rounded-xl transition text-left ${
+      active
+        ? "bg-emerald-600 text-white"
+        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+    }`}
+  >
+    {label}
+  </button>
+);
+
+const DownloadBtn = ({ label, onClick }: any) => (
+  <button
+    onClick={onClick}
+    className="bg-amber-500 text-white px-4 py-2 rounded-xl hover:bg-amber-600 transition"
+  >
+    {label}
+  </button>
+);

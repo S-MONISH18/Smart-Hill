@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Green Field Hub</string>
+    <string name="title_activity_main">Green Field Hub</string>
+    <string name="package_name">com.greenfieldhub.app</string>
+    <string name="custom_url_scheme">com.greenfieldhub.app</string>
+</resources>
